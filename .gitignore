@@ -1,0 +1,8 @@
+.expo/
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-home/
+mobile/.DS_Store
+mobile/npm-debug.log*
+mobile/yarn-debug.log*
+mobile/yarn-error.log*

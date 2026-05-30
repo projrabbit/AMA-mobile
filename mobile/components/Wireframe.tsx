@@ -2,7 +2,6 @@ import { PropsWithChildren } from 'react';
 import {
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const wf = {
   colors: {
@@ -45,7 +45,7 @@ export function Screen({
   scroll = true,
 }: PropsWithChildren<{ title: string; subtitle?: string; scroll?: boolean }>) {
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.appBar}>
         <Text style={styles.appBarTitle}>{title}</Text>
         {subtitle ? <Text style={styles.appBarSubtitle}>{subtitle}</Text> : null}
@@ -256,6 +256,7 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: wf.spacing.lg,
+    paddingBottom: wf.spacing.lg + 64,
     gap: wf.spacing.md,
   },
   card: {

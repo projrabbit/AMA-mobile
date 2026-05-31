@@ -429,7 +429,7 @@ export async function listExceptions(
 export async function approveAttendanceRecord(
   token: string,
   recordId: number,
-  input: { decision: 'approve' | 'reject'; note?: string | null },
+  input: { note?: string | null } = {},
 ): Promise<unknown> {
   return apiRequest<unknown>({
     path: `/api/v1/attendance/${recordId}/approve`,

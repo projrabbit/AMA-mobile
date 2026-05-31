@@ -13,22 +13,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export const wf = {
   colors: {
-    ink: '#1f2933',
-    muted: '#667085',
-    line: '#344054',
-    soft: '#f6f8fa',
-    panel: '#ffffff',
-    accent: '#e8f1ff',
-    page: '#f1f3f5',
-    dangerBg: '#fff5f5',
-    dangerText: '#b42318',
+    ink: '#101828',
+    muted: '#475467',
+    line: '#D0D5DD',
+    soft: '#F9FAFB',
+    panel: '#FFFFFF',
+    accent: '#EEF4FF',
+    page: '#F2F4F7',
+    primary: '#1570EF',
+    primaryDark: '#175CD3',
+    dangerBg: '#FEF3F2',
+    dangerText: '#B42318',
   },
   radius: {
-    md: 12,
-    lg: 16,
+    md: 14,
+    lg: 18,
   },
   border: {
-    width: 2,
+    width: 1,
   },
   spacing: {
     xs: 6,
@@ -142,7 +144,7 @@ export function Button({
       <Text
         style={[
           styles.buttonText,
-          variant === 'secondary' ? styles.buttonTextSecondary : null,
+          variant === 'secondary' ? styles.buttonTextSecondary : styles.buttonTextPrimary,
         ]}>
         {label}
       </Text>
@@ -237,22 +239,23 @@ const styles = StyleSheet.create({
     backgroundColor: wf.colors.page,
   },
   appBar: {
-    backgroundColor: wf.colors.soft,
+    backgroundColor: wf.colors.panel,
     borderBottomColor: wf.colors.line,
-    borderBottomWidth: wf.border.width,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: wf.spacing.lg,
     paddingTop: wf.spacing.md,
     paddingBottom: wf.spacing.md,
   },
   appBarTitle: {
     color: wf.colors.ink,
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '700',
   },
   appBarSubtitle: {
     marginTop: 2,
     color: wf.colors.muted,
     fontSize: 13,
+    lineHeight: 18,
   },
   body: {
     padding: wf.spacing.lg,
@@ -265,6 +268,11 @@ const styles = StyleSheet.create({
     borderWidth: wf.border.width,
     borderRadius: wf.radius.lg,
     padding: wf.spacing.md,
+    shadowColor: '#101828',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   box: {
     backgroundColor: wf.colors.panel,
@@ -272,6 +280,11 @@ const styles = StyleSheet.create({
     borderWidth: wf.border.width,
     borderRadius: wf.radius.md,
     padding: wf.spacing.md,
+    shadowColor: '#101828',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
   },
   row: {
     flexDirection: 'row',
@@ -281,14 +294,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowLabel: {
-    width: 120,
+    width: 118,
     color: wf.colors.muted,
     fontSize: 14,
+    lineHeight: 20,
   },
   rowValue: {
     flex: 1,
     color: wf.colors.ink,
     fontSize: 14,
+    lineHeight: 20,
   },
   placeholder: {
     backgroundColor: wf.colors.panel,
@@ -298,10 +313,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: wf.spacing.md,
+    shadowColor: '#101828',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
   },
   placeholderText: {
     color: wf.colors.muted,
     textAlign: 'center',
+    lineHeight: 18,
   },
   metric: {
     flex: 1,
@@ -313,6 +334,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    shadowColor: '#101828',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 1,
   },
   metricValue: {
     color: wf.colors.ink,
@@ -322,9 +348,9 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: wf.colors.muted,
     fontSize: 12,
+    lineHeight: 16,
   },
   button: {
-    borderColor: wf.colors.line,
     borderWidth: wf.border.width,
     borderRadius: wf.radius.md,
     paddingVertical: wf.spacing.md,
@@ -333,18 +359,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonPrimary: {
-    backgroundColor: wf.colors.panel,
+    backgroundColor: wf.colors.primary,
+    borderColor: wf.colors.primary,
   },
   buttonSecondary: {
-    backgroundColor: wf.colors.soft,
+    backgroundColor: wf.colors.panel,
+    borderColor: wf.colors.line,
   },
   buttonText: {
-    color: wf.colors.ink,
     fontSize: 16,
     fontWeight: '700',
   },
+  buttonTextPrimary: {
+    color: '#FFFFFF',
+  },
   buttonTextSecondary: {
-    fontWeight: '500',
+    color: wf.colors.ink,
+    fontWeight: '600',
   },
   buttonLg: {
     paddingVertical: 18,
@@ -361,6 +392,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     color: wf.colors.muted,
     fontSize: 13,
+    lineHeight: 18,
   },
   input: {
     backgroundColor: wf.colors.panel,
@@ -371,6 +403,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: wf.spacing.md,
     color: wf.colors.ink,
     fontSize: 14,
+    lineHeight: 20,
   },
   statusBox: {
     borderColor: wf.colors.line,
@@ -378,7 +411,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: wf.radius.md,
     padding: wf.spacing.md,
-    backgroundColor: '#fafafa',
+    backgroundColor: wf.colors.soft,
   },
   statusBoxText: {
     color: wf.colors.muted,
@@ -391,7 +424,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: wf.radius.md,
     padding: wf.spacing.md,
-    backgroundColor: '#fafafa',
+    backgroundColor: wf.colors.soft,
   },
   wireNoteText: {
     color: wf.colors.muted,
@@ -400,14 +433,15 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    gap: wf.spacing.sm,
+    backgroundColor: wf.colors.soft,
+    borderColor: wf.colors.line,
+    borderWidth: wf.border.width,
+    borderRadius: wf.radius.lg,
+    overflow: 'hidden',
   },
   tab: {
     flex: 1,
-    backgroundColor: wf.colors.panel,
-    borderColor: wf.colors.line,
-    borderWidth: wf.border.width,
-    borderRadius: wf.radius.md,
+    backgroundColor: 'transparent',
     paddingVertical: wf.spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
@@ -418,7 +452,7 @@ const styles = StyleSheet.create({
   tabText: {
     color: wf.colors.ink,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   tabTextActive: {
     fontWeight: '700',

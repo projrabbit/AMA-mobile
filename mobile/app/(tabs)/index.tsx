@@ -17,8 +17,6 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [geofence, setGeofence] = useState<ama.GeofenceListItem | null>(null);
-  const [geofenceError, setGeofenceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -92,58 +90,6 @@ export default function HomeScreen() {
     };
   }, [accessToken, me?.account.role]);
 
-  useEffect(() => {
-    if (!accessToken) return;
-    if (me?.account.role !== 'employee') return;
-    let alive = true;
-    setGeofenceError(null);
-
-    ama
-      .listGeofences(accessToken, { is_active: true })
-      .then((data) => {
-        if (!alive) return;
-        const list = Array.isArray(data) ? data : [];
-        const candidates = list.filter(
-          (g) =>
-            typeof g.center_lat === 'number' &&
-            typeof g.center_lng === 'number' &&
-            typeof g.radius_meters === 'number' &&
-            (g.is_active ?? true),
-        );
-
-        if (candidates.length <= 0) {
-          setGeofence(null);
-          return;
-        }
-
-        if (!coords) {
-          setGeofence(candidates[0]);
-          return;
-        }
-
-        let best = candidates[0];
-        let bestD = distanceMeters(coords, { latitude: best.center_lat!, longitude: best.center_lng! });
-        for (const g of candidates.slice(1)) {
-          const d = distanceMeters(coords, { latitude: g.center_lat!, longitude: g.center_lng! });
-          if (d < bestD) {
-            best = g;
-            bestD = d;
-          }
-        }
-        setGeofence(best);
-      })
-      .catch((e) => {
-        if (!alive) return;
-        const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không thể tải geofence.';
-        setGeofence(null);
-        setGeofenceError(msg);
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [accessToken, me?.account.role, coords?.latitude, coords?.longitude]);
-
   const shiftText = useMemo(() => {
     if (me?.account.role && me.account.role !== 'employee') return 'Tổng quan hôm nay';
     const s = today?.current_shift;
@@ -157,26 +103,7 @@ export default function HomeScreen() {
   const latestCheckin = useMemo(() => formatTime(today?.latest_checkin?.timestamp), [today?.latest_checkin?.timestamp]);
   const latestCheckout = useMemo(() => formatTime(today?.latest_checkout?.timestamp), [today?.latest_checkout?.timestamp]);
 
-  const inFence = useMemo(() => {
-    if (!coords) return null;
-    if (!geofence) return null;
-    if (typeof geofence.center_lat !== 'number' || typeof geofence.center_lng !== 'number' || typeof geofence.radius_meters !== 'number')
-      return null;
-    const d = distanceMeters(coords, { latitude: geofence.center_lat, longitude: geofence.center_lng });
-    return d <= geofence.radius_meters;
-  }, [coords, geofence]);
-
   const mapHtml = useMemo(() => {
-    if (!coords && !geofence) return null;
-    const fence =
-      geofence && typeof geofence.center_lat === 'number' && typeof geofence.center_lng === 'number'
-        ? {
-            center_lat: geofence.center_lat,
-            center_lng: geofence.center_lng,
-            radius_meters: typeof geofence.radius_meters === 'number' ? geofence.radius_meters : null,
-          }
-        : null;
-
     const user = coords
       ? {
           latitude: coords.latitude,
@@ -185,8 +112,9 @@ export default function HomeScreen() {
         }
       : null;
 
-    return arcgisMiniMapHtml({ user, fence });
-  }, [coords, geofence]);
+    if (!user) return null;
+    return arcgisMiniMapHtml({ user });
+  }, [coords]);
 
   return (
     <Screen title={`Xin chào, ${me?.employee.full_name ?? '—'}`} subtitle={shiftText}>
@@ -253,20 +181,13 @@ export default function HomeScreen() {
       {me?.account.role === 'employee' ? (
         <Box>
           <Row label="Vị trí" value={coords ? `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}` : '—'} />
-          <Row label="Geofence" value={geofence?.name ?? '—'} />
-          <Row
-            label="Trong vùng"
-            value={
-              inFence === null ? '—' : inFence ? 'Có (hợp lệ)' : 'Không (ngoài vùng cho phép)'
-            }
-          />
+          <Row label="Độ chính xác" value={coords?.accuracy != null ? `${Math.round(coords.accuracy)}m` : '—'} />
         </Box>
       ) : null}
 
       {loading ? <StatusBox text="Đang tải trạng thái..." /> : null}
       {error ? <StatusBox text={error} /> : null}
       {locationError ? <StatusBox text={locationError} /> : null}
-      {geofenceError ? <StatusBox text={geofenceError} /> : null}
 
       {me?.account.role === 'employee' ? (
         <>
@@ -313,10 +234,7 @@ function distanceMeters(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-function arcgisMiniMapHtml(input: {
-  user: { latitude: number; longitude: number; accuracy: number | null } | null;
-  fence: { center_lat: number; center_lng: number; radius_meters: number | null } | null;
-}): string {
+function arcgisMiniMapHtml(input: { user: { latitude: number; longitude: number; accuracy: number | null } }): string {
   const payload = JSON.stringify(input);
   return `<!doctype html>
 <html>
@@ -334,9 +252,8 @@ function arcgisMiniMapHtml(input: {
     <script>
       const payload = ${payload};
       const user = payload.user;
-      const fence = payload.fence;
-      const fallbackCenter = user ? [user.longitude, user.latitude] : fence ? [fence.center_lng, fence.center_lat] : [105.83416, 21.02776];
-      const zoom = fence && fence.radius_meters ? (fence.radius_meters <= 120 ? 19 : fence.radius_meters <= 350 ? 18 : 16) : 17;
+      const fallbackCenter = user ? [user.longitude, user.latitude] : [105.83416, 21.02776];
+      const zoom = 17;
 
       require(["esri/Map", "esri/views/MapView", "esri/Graphic", "esri/layers/GraphicsLayer", "esri/geometry/Circle"],
         function(Map, MapView, Graphic, GraphicsLayer, Circle) {
@@ -352,23 +269,6 @@ function arcgisMiniMapHtml(input: {
             ui: { components: [] }
           });
 
-          if (fence && typeof fence.center_lat === "number" && typeof fence.center_lng === "number") {
-            const r = typeof fence.radius_meters === "number" ? fence.radius_meters : 120;
-            const circle = new Circle({
-              center: [fence.center_lng, fence.center_lat],
-              radius: r,
-              radiusUnit: "meters"
-            });
-            layer.add(new Graphic({
-              geometry: circle,
-              symbol: {
-                type: "simple-fill",
-                color: [232, 241, 255, 0.35],
-                outline: { color: [52, 64, 84, 1], width: 2 }
-              }
-            }));
-          }
-
           if (user && typeof user.latitude === "number" && typeof user.longitude === "number") {
             layer.add(new Graphic({
               geometry: { type: "point", latitude: user.latitude, longitude: user.longitude },
@@ -380,10 +280,6 @@ function arcgisMiniMapHtml(input: {
                 outline: { color: [255, 255, 255, 1], width: 2 }
               }
             }));
-          }
-
-          if (user && fence && typeof fence.center_lat === "number" && typeof fence.center_lng === "number") {
-            view.goTo({ target: [[fence.center_lng, fence.center_lat], [user.longitude, user.latitude]] }, { animate: false }).catch(() => {});
           }
         }
       );

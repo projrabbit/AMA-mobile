@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 import * as ama from '@/api/ama';
 import { ApiError } from '@/api/client';
@@ -13,6 +15,10 @@ export default function HomeScreen() {
   const [summary, setSummary] = useState<ama.DashboardSummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number | null } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [geofence, setGeofence] = useState<ama.GeofenceListItem | null>(null);
+  const [geofenceError, setGeofenceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -53,15 +59,134 @@ export default function HomeScreen() {
     };
   }, [accessToken, me?.account.role]);
 
+  useEffect(() => {
+    if (!accessToken) return;
+    if (me?.account.role !== 'employee') return;
+    let alive = true;
+    setLocationError(null);
+
+    (async () => {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!alive) return;
+      if (!perm.granted) {
+        setCoords(null);
+        setLocationError('Chưa được cấp quyền vị trí.');
+        return;
+      }
+
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (!alive) return;
+      setCoords({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy: pos.coords.accuracy ?? null,
+      });
+    })().catch((e) => {
+      if (!alive) return;
+      setCoords(null);
+      setLocationError(e instanceof Error ? e.message : 'Không thể lấy vị trí.');
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, me?.account.role]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    if (me?.account.role !== 'employee') return;
+    let alive = true;
+    setGeofenceError(null);
+
+    ama
+      .listGeofences(accessToken, { is_active: true })
+      .then((data) => {
+        if (!alive) return;
+        const list = Array.isArray(data) ? data : [];
+        const candidates = list.filter(
+          (g) =>
+            typeof g.center_lat === 'number' &&
+            typeof g.center_lng === 'number' &&
+            typeof g.radius_meters === 'number' &&
+            (g.is_active ?? true),
+        );
+
+        if (candidates.length <= 0) {
+          setGeofence(null);
+          return;
+        }
+
+        if (!coords) {
+          setGeofence(candidates[0]);
+          return;
+        }
+
+        let best = candidates[0];
+        let bestD = distanceMeters(coords, { latitude: best.center_lat!, longitude: best.center_lng! });
+        for (const g of candidates.slice(1)) {
+          const d = distanceMeters(coords, { latitude: g.center_lat!, longitude: g.center_lng! });
+          if (d < bestD) {
+            best = g;
+            bestD = d;
+          }
+        }
+        setGeofence(best);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        const msg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Không thể tải geofence.';
+        setGeofence(null);
+        setGeofenceError(msg);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, me?.account.role, coords?.latitude, coords?.longitude]);
+
   const shiftText = useMemo(() => {
     if (me?.account.role && me.account.role !== 'employee') return 'Tổng quan hôm nay';
     const s = today?.current_shift;
     if (!s) return 'Ca làm: —';
-    return `${s.name}: ${s.start_time} - ${s.end_time}`;
+    const name = s.name === 'Office Day Shift' ? 'Ca hành chính' : s.name;
+    const start = String(s.start_time ?? '').slice(0, 5);
+    const end = String(s.end_time ?? '').slice(0, 5);
+    return `${name}: ${start} - ${end}`;
   }, [me?.account.role, today?.current_shift]);
 
   const latestCheckin = useMemo(() => formatTime(today?.latest_checkin?.timestamp), [today?.latest_checkin?.timestamp]);
   const latestCheckout = useMemo(() => formatTime(today?.latest_checkout?.timestamp), [today?.latest_checkout?.timestamp]);
+
+  const inFence = useMemo(() => {
+    if (!coords) return null;
+    if (!geofence) return null;
+    if (typeof geofence.center_lat !== 'number' || typeof geofence.center_lng !== 'number' || typeof geofence.radius_meters !== 'number')
+      return null;
+    const d = distanceMeters(coords, { latitude: geofence.center_lat, longitude: geofence.center_lng });
+    return d <= geofence.radius_meters;
+  }, [coords, geofence]);
+
+  const mapHtml = useMemo(() => {
+    if (!coords && !geofence) return null;
+    const fence =
+      geofence && typeof geofence.center_lat === 'number' && typeof geofence.center_lng === 'number'
+        ? {
+            center_lat: geofence.center_lat,
+            center_lng: geofence.center_lng,
+            radius_meters: typeof geofence.radius_meters === 'number' ? geofence.radius_meters : null,
+          }
+        : null;
+
+    const user = coords
+      ? {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+        }
+      : null;
+
+    return arcgisMiniMapHtml({ user, fence });
+  }, [coords, geofence]);
 
   return (
     <Screen title={`Xin chào, ${me?.employee.full_name ?? '—'}`} subtitle={shiftText}>
@@ -103,10 +228,45 @@ export default function HomeScreen() {
         <Row label="Tài khoản" value={me?.account.username ?? '—'} />
       </Box>
 
-      <Placeholder label="Bản đồ nhỏ / vị trí hiện tại trong vùng cho phép" />
+      {me?.account.role === 'employee' ? (
+        <View style={styles.mapWrap}>
+          {mapHtml ? (
+            <WebView
+              source={{ html: mapHtml }}
+              originWhitelist={['*']}
+              javaScriptEnabled
+              domStorageEnabled
+              scrollEnabled={false}
+              style={styles.map}
+            />
+          ) : (
+            <View style={styles.mapPlaceholder}>
+              <Text style={styles.mapPlaceholderTitle}>Bản đồ</Text>
+              <Text style={styles.mapPlaceholderText}>Đang lấy vị trí để hiển thị trên ArcGIS.</Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <Placeholder label="Bản đồ nhỏ / vị trí hiện tại trong vùng cho phép" />
+      )}
+
+      {me?.account.role === 'employee' ? (
+        <Box>
+          <Row label="Vị trí" value={coords ? `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}` : '—'} />
+          <Row label="Geofence" value={geofence?.name ?? '—'} />
+          <Row
+            label="Trong vùng"
+            value={
+              inFence === null ? '—' : inFence ? 'Có (hợp lệ)' : 'Không (ngoài vùng cho phép)'
+            }
+          />
+        </Box>
+      ) : null}
 
       {loading ? <StatusBox text="Đang tải trạng thái..." /> : null}
       {error ? <StatusBox text={error} /> : null}
+      {locationError ? <StatusBox text={locationError} /> : null}
+      {geofenceError ? <StatusBox text={geofenceError} /> : null}
 
       {me?.account.role === 'employee' ? (
         <>
@@ -123,9 +283,7 @@ export default function HomeScreen() {
             disabled={!today?.can_check_out}
           />
         </>
-      ) : (
-        <Button label="Quản trị / Báo cáo" size="lg" onPress={() => router.push('/manage')} />
-      )}
+      ) : null}
     </Screen>
   );
 }
@@ -139,9 +297,133 @@ function formatTime(iso?: string): string | null {
   return `${hh}:${mm}`;
 }
 
+function distanceMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLon = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const s1 = Math.sin(dLat / 2);
+  const s2 = Math.sin(dLon / 2);
+  const h = s1 * s1 + Math.cos(lat1) * Math.cos(lat2) * s2 * s2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function arcgisMiniMapHtml(input: {
+  user: { latitude: number; longitude: number; accuracy: number | null } | null;
+  fence: { center_lat: number; center_lng: number; radius_meters: number | null } | null;
+}): string {
+  const payload = JSON.stringify(input);
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css" />
+    <style>
+      html, body, #viewDiv { height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; background: #ffffff; }
+    </style>
+    <script src="https://js.arcgis.com/4.29/"></script>
+  </head>
+  <body>
+    <div id="viewDiv"></div>
+    <script>
+      const payload = ${payload};
+      const user = payload.user;
+      const fence = payload.fence;
+      const fallbackCenter = user ? [user.longitude, user.latitude] : fence ? [fence.center_lng, fence.center_lat] : [105.83416, 21.02776];
+      const zoom = fence && fence.radius_meters ? (fence.radius_meters <= 120 ? 19 : fence.radius_meters <= 350 ? 18 : 16) : 17;
+
+      require(["esri/Map", "esri/views/MapView", "esri/Graphic", "esri/layers/GraphicsLayer", "esri/geometry/Circle"],
+        function(Map, MapView, Graphic, GraphicsLayer, Circle) {
+          const map = new Map({ basemap: "streets-vector" });
+          const layer = new GraphicsLayer();
+          map.add(layer);
+
+          const view = new MapView({
+            container: "viewDiv",
+            map,
+            center: fallbackCenter,
+            zoom,
+            ui: { components: [] }
+          });
+
+          if (fence && typeof fence.center_lat === "number" && typeof fence.center_lng === "number") {
+            const r = typeof fence.radius_meters === "number" ? fence.radius_meters : 120;
+            const circle = new Circle({
+              center: [fence.center_lng, fence.center_lat],
+              radius: r,
+              radiusUnit: "meters"
+            });
+            layer.add(new Graphic({
+              geometry: circle,
+              symbol: {
+                type: "simple-fill",
+                color: [232, 241, 255, 0.35],
+                outline: { color: [52, 64, 84, 1], width: 2 }
+              }
+            }));
+          }
+
+          if (user && typeof user.latitude === "number" && typeof user.longitude === "number") {
+            layer.add(new Graphic({
+              geometry: { type: "point", latitude: user.latitude, longitude: user.longitude },
+              symbol: {
+                type: "simple-marker",
+                style: "circle",
+                color: [31, 41, 51, 1],
+                size: 10,
+                outline: { color: [255, 255, 255, 1], width: 2 }
+              }
+            }));
+          }
+
+          if (user && fence && typeof fence.center_lat === "number" && typeof fence.center_lng === "number") {
+            view.goTo({ target: [[fence.center_lng, fence.center_lat], [user.longitude, user.latitude]] }, { animate: false }).catch(() => {});
+          }
+        }
+      );
+    </script>
+  </body>
+</html>`;
+}
+
 const styles = StyleSheet.create({
   metricRow: {
     flexDirection: 'row',
     gap: wf.spacing.md,
+  },
+  mapWrap: {
+    height: 170,
+    borderColor: wf.colors.line,
+    borderWidth: wf.border.width,
+    borderRadius: wf.radius.md,
+    backgroundColor: wf.colors.panel,
+    overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+    backgroundColor: wf.colors.panel,
+  },
+  mapPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: wf.spacing.md,
+    gap: wf.spacing.xs,
+  },
+  mapPlaceholderTitle: {
+    color: wf.colors.ink,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  mapPlaceholderText: {
+    color: wf.colors.muted,
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

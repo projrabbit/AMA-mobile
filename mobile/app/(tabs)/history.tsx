@@ -14,11 +14,24 @@ export default function HistoryScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const range = useMemo(() => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - 7);
+    const now = new Date();
+    if (tab === 0) {
+      const d = toYmd(now);
+      return { from: d, to: d };
+    }
+    if (tab === 1) {
+      const { from, to } = lastWeekRange(now);
+      return { from: toYmd(from), to: toYmd(to) };
+    }
+    const { from, to } = lastMonthRange(now);
     return { from: toYmd(from), to: toYmd(to) };
-  }, []);
+  }, [tab]);
+
+  const rangeTitle = useMemo(() => {
+    if (tab === 0) return 'Hôm nay';
+    if (tab === 1) return 'Tuần trước';
+    return 'Tháng trước';
+  }, [tab]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -52,7 +65,7 @@ export default function HistoryScreen() {
     return () => {
       alive = false;
     };
-  }, [accessToken, range, me?.account.role]);
+  }, [accessToken, range.from, range.to, me?.account.role]);
 
   const metricTotal = useMemo(() => {
     const min = data?.summary.total_work_minutes ?? report?.summary.total_work_minutes ?? 0;
@@ -67,12 +80,12 @@ export default function HistoryScreen() {
   return (
     <Screen
       title={me?.account.role === 'employee' ? 'Lịch sử chấm công' : 'Báo cáo chấm công'}
-      subtitle={me?.account.role === 'employee' ? 'Xem theo ngày / tuần / tháng' : 'Tổng hợp theo phòng ban / nhân viên'}
+      subtitle={me?.account.role === 'employee' ? 'Xem theo hôm nay / tuần trước / tháng trước' : 'Tổng hợp theo phòng ban / nhân viên'}
     >
-      <Tabs3 value={tab} onChange={setTab} labels={['Ngày', 'Tuần', 'Tháng']} />
+      <Tabs3 value={tab} onChange={setTab} labels={['Hôm nay', 'Tuần trước', 'Tháng trước']} />
 
       <Field
-        label="Khoảng thời gian"
+        label={`Khoảng thời gian (${rangeTitle})`}
         value={rangeLabel}
         onChangeText={() => {}}
         placeholder="dd/mm/yyyy - dd/mm/yyyy"
@@ -110,6 +123,38 @@ function toYmd(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function addDays(d: Date, days: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function startOfWeekMonday(d: Date): Date {
+  const x = startOfDay(d);
+  const dow = x.getDay(); // 0=Sun..6=Sat
+  const delta = dow === 0 ? -6 : 1 - dow;
+  return addDays(x, delta);
+}
+
+function lastWeekRange(now: Date): { from: Date; to: Date } {
+  const thisWeekStart = startOfWeekMonday(now);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekEnd = addDays(thisWeekStart, -1);
+  return { from: lastWeekStart, to: lastWeekEnd };
+}
+
+function lastMonthRange(now: Date): { from: Date; to: Date } {
+  const to = startOfDay(now);
+  const from = addDays(to, -29);
+  return { from, to };
 }
 
 function toDmy(ymd: string): string {

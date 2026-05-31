@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 import { apiRequest } from './client';
 
@@ -648,6 +649,8 @@ export async function submitAttendance(input: {
   const form = new FormData();
   form.append('device_fingerprint', input.deviceFingerprint);
   form.append('platform', Platform.OS);
+  form.append('os_version', String(Platform.Version ?? ''));
+  form.append('app_version', String(Constants.expoConfig?.version ?? (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion ?? ''));
   form.append('latitude', String(input.latitude));
   form.append('longitude', String(input.longitude));
   form.append('altitude', String(input.altitude));

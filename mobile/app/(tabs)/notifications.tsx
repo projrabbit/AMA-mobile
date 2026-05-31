@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import * as ama from '@/api/ama';
 import { Box, Button, Row, Screen, StatusBox, Tabs3, wf } from '@/components/Wireframe';
@@ -29,6 +29,7 @@ export default function NotificationsScreen() {
   const [tab, setTab] = useState(0);
   const [items, setItems] = useState<ama.NotificationItem[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,8 +66,8 @@ export default function NotificationsScreen() {
   }, [items, tab]);
 
   const selected = useMemo(() => {
-    return notices.find((n) => n.notification_id === selectedId) ?? notices[0] ?? null;
-  }, [notices, selectedId]);
+    return items.find((n) => n.notification_id === selectedId) ?? null;
+  }, [items, selectedId]);
 
   return (
     <Screen title="Thông báo" subtitle="Cập nhật mới nhất từ hệ thống">
@@ -82,12 +83,13 @@ export default function NotificationsScreen() {
           </View>
         ) : (
           notices.map((n) => {
-            const active = n.notification_id === selected?.notification_id;
+            const active = n.notification_id === selectedId;
             return (
               <Pressable
                 key={n.notification_id}
                 onPress={() => {
                   setSelectedId(n.notification_id);
+                  setModalOpen(true);
                   if (!accessToken || n.is_read) return;
                   ama
                     .markRead(accessToken, n.notification_id)
@@ -110,19 +112,6 @@ export default function NotificationsScreen() {
         )}
       </View>
 
-      <Box>
-        <Text style={styles.detailTitle}>Chi tiết thông báo được chọn</Text>
-        {selected ? (
-          <>
-            <Row label="Loại" value={noticeTypeLabel(selected.type)} />
-            <Row label="Thời gian" value={formatDateTime(selected.created_at)} />
-            <Row label="Nội dung" value={selected.body} />
-          </>
-        ) : (
-          <Text style={styles.emptyText}>Chọn một thông báo để xem chi tiết.</Text>
-        )}
-      </Box>
-
       <Button
         label="Đánh dấu tất cả đã đọc"
         variant="secondary"
@@ -135,6 +124,44 @@ export default function NotificationsScreen() {
         }}
         disabled={!accessToken || items.length === 0 || items.every((n) => n.is_read)}
       />
+
+      <Modal
+        visible={modalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setModalOpen(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            {selected ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{selected.title}</Text>
+                  {!selected.is_read ? <Text style={styles.modalBadge}>Mới</Text> : null}
+                </View>
+
+                <Box>
+                  <Row label="Loại" value={noticeTypeLabel(selected.type)} />
+                  <Row label="Thời gian" value={formatDateTime(selected.created_at)} />
+                </Box>
+
+                <Box>
+                  <Text style={styles.modalSectionTitle}>Nội dung</Text>
+                  <ScrollView style={styles.modalBodyScroll} contentContainerStyle={styles.modalBodyContent}>
+                    <Text style={styles.modalBodyText}>{selected.body}</Text>
+                  </ScrollView>
+                </Box>
+
+                <Button label="Đóng" variant="secondary" onPress={() => setModalOpen(false)} />
+              </>
+            ) : (
+              <Box>
+                <Text style={styles.emptyText}>Không có thông báo được chọn.</Text>
+                <Button label="Đóng" variant="secondary" onPress={() => setModalOpen(false)} />
+              </Box>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
@@ -172,11 +199,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  detailTitle: {
-    color: wf.colors.ink,
-    fontWeight: '700',
-    marginBottom: wf.spacing.sm,
-  },
   empty: {
     backgroundColor: wf.colors.panel,
     borderColor: wf.colors.line,
@@ -186,5 +208,51 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: wf.colors.muted,
+  },
+  modalOverlay: {
+    flex: 1,
+    padding: wf.spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+  },
+  modalCard: {
+    backgroundColor: wf.colors.page,
+    borderColor: wf.colors.line,
+    borderWidth: wf.border.width,
+    borderRadius: wf.radius.lg,
+    padding: wf.spacing.md,
+    gap: wf.spacing.md,
+    maxHeight: '90%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: wf.spacing.sm,
+  },
+  modalTitle: {
+    flex: 1,
+    color: wf.colors.ink,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  modalBadge: {
+    color: wf.colors.dangerText,
+    fontWeight: '700',
+  },
+  modalSectionTitle: {
+    color: wf.colors.ink,
+    fontWeight: '700',
+    marginBottom: wf.spacing.sm,
+  },
+  modalBodyScroll: {
+    maxHeight: 220,
+  },
+  modalBodyContent: {
+    paddingBottom: wf.spacing.sm,
+  },
+  modalBodyText: {
+    color: wf.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

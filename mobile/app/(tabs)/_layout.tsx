@@ -1,111 +1,127 @@
-import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
+import { Pressable, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { wf } from '@/components/Wireframe';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 52 + insets.bottom;
   return (
     <Tabs
       screenOptions={{
-        headerShown: useClientOnlyValue(false, true),
+        headerShown: false,
+        tabBarShowLabel: true,
         tabBarActiveTintColor: wf.colors.ink,
         tabBarInactiveTintColor: wf.colors.muted,
+        tabBarIcon: () => null,
+        tabBarIconStyle: styles.hideIcon,
+        tabBarButton: (props) => {
+          const selected = Boolean(props.accessibilityState?.selected);
+          const { style, children } = props;
+          return (
+            <Pressable
+              onPress={props.onPress}
+              onLongPress={props.onLongPress}
+              accessibilityRole={props.accessibilityRole}
+              accessibilityState={props.accessibilityState}
+              accessibilityLabel={props.accessibilityLabel}
+              accessibilityHint={props.accessibilityHint}
+              testID={props.testID}
+              style={({ pressed }) => [
+                style,
+                styles.button,
+                { paddingBottom: insets.bottom },
+                selected ? styles.buttonActive : null,
+                pressed ? styles.buttonPressed : null,
+              ]}>
+              {children}
+            </Pressable>
+          );
+        },
         tabBarStyle: {
-          backgroundColor: wf.colors.soft,
-          borderTopColor: wf.colors.line,
-          borderTopWidth: wf.border.width,
+          backgroundColor: wf.colors.panel,
+          borderColor: wf.colors.line,
+          borderWidth: wf.border.width,
+          borderRadius: wf.radius.lg,
+          overflow: 'hidden',
+          position: 'absolute',
+          left: wf.spacing.lg,
+          right: wf.spacing.lg,
+          bottom: 0,
+          height: tabBarHeight,
+          paddingBottom: 0,
+          paddingTop: 0,
+          zIndex: 50,
+          elevation: 50,
         },
-        tabBarItemStyle: {
-          paddingVertical: 6,
+        tabBarItemStyle: styles.item,
+        tabBarLabelStyle: {
+          fontSize: 13,
+          fontWeight: '700',
+          includeFontPadding: false,
         },
-        tabBarActiveBackgroundColor: wf.colors.accent,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Trang chủ',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'house.fill',
-                android: 'home',
-                web: 'home',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarItemStyle: [styles.item, styles.divider],
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'Lịch sử',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'clock.arrow.circlepath',
-                android: 'history',
-                web: 'history',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarItemStyle: [styles.item, styles.divider],
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
           title: 'Thông báo',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'bell.fill',
-                android: 'notifications',
-                web: 'notifications',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarItemStyle: [styles.item, styles.divider],
         }}
       />
       <Tabs.Screen
         name="account"
         options={{
           title: 'Tài khoản',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'person.crop.circle',
-                android: 'person',
-                web: 'person',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarItemStyle: styles.item,
         }}
       />
       <Tabs.Screen
         name="manage"
         options={{
-          title: 'Quản trị',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'gearshape.fill',
-                android: 'settings',
-                web: 'settings',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          href: null,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  hideIcon: {
+    display: 'none',
+  },
+  button: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonActive: {
+    backgroundColor: wf.colors.accent,
+  },
+  buttonPressed: {
+    opacity: 0.75,
+  },
+  item: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  divider: {
+    borderRightColor: wf.colors.line,
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+});

@@ -105,8 +105,8 @@ export default function HistoryScreen() {
             <Text style={styles.itemDetail}>{formatDayDetail(d)}</Text>
           </View>
         ))}
-        {report?.details?.slice(0, 30).map((d) => (
-          <View key={`${d.employee_id}-${d.date}`} style={styles.item}>
+        {report?.details?.slice(0, 30).map((d, idx) => (
+          <View key={`${d.employee_id}-${d.date}-${idx}`} style={styles.item}>
             <Text style={styles.itemTitle}>
               {toDmy(d.date)} • {d.full_name}
             </Text>

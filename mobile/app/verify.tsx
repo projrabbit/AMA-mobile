@@ -5,8 +5,28 @@ import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { ApiError } from '@/api/client';
 import * as ama from '@/api/ama';
-import { Box, Button, Row, Screen, StatusBox, wf } from '@/components/Wireframe';
+import { Button, Screen, StatusBox, wf } from '@/components/Wireframe';
 import { useSession } from '@/state/session';
+
+type DetectedFace = {
+  faceID?: number;
+  bounds?: {
+    origin?: { x?: number; y?: number };
+    size?: { width?: number; height?: number };
+  };
+};
+
+type FaceDetectorModule = typeof import('expo-face-detector');
+
+function loadFaceDetector(): FaceDetectorModule | null {
+  try {
+    return require('expo-face-detector') as FaceDetectorModule;
+  } catch {
+    return null;
+  }
+}
+
+const faceDetectorModule = loadFaceDetector();
 
 export default function VerifyScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
@@ -18,6 +38,8 @@ export default function VerifyScreen() {
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [deviceFingerprint] = useState(() => `ama-${Platform.OS}-${Math.random().toString(16).slice(2)}`);
+  const [faces, setFaces] = useState<DetectedFace[]>([]);
+  const faceBoxEnabled = useMemo(() => faceDetectorModule != null, []);
 
   const actionLabel = useMemo(() => {
     return type === 'out' ? 'Chấm công ra' : 'Chấm công vào';
@@ -100,8 +122,57 @@ export default function VerifyScreen() {
       <View style={styles.cameraWrap}>
         {permission?.granted ? (
           <>
-            <CameraView ref={cameraRef} style={styles.camera} facing={facing} />
-            <View pointerEvents="none" style={styles.faceGuide} />
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing={facing}
+              {...(faceDetectorModule
+                ? ({
+                    onFacesDetected: (event: { faces?: DetectedFace[] }) => {
+                      setFaces(event.faces ?? []);
+                    },
+                    onFaceDetectionError: () => {
+                      setFaces([]);
+                    },
+                    faceDetectorSettings: {
+                      mode: faceDetectorModule.FaceDetectorMode.fast,
+                      detectLandmarks: faceDetectorModule.FaceDetectorLandmarks.none,
+                      runClassifications: faceDetectorModule.FaceDetectorClassifications.none,
+                      tracking: true,
+                      minDetectionInterval: 150,
+                    },
+                  } as any)
+                : {})}
+            />
+            <View pointerEvents="none" style={styles.overlay}>
+              <View style={styles.faceGuide} />
+              {faceBoxEnabled
+                ? faces.map((face, idx) => {
+                    const origin = face.bounds?.origin;
+                    const size = face.bounds?.size;
+                    const x = origin?.x ?? 0;
+                    const y = origin?.y ?? 0;
+                    const width = size?.width ?? 0;
+                    const height = size?.height ?? 0;
+                    if (width <= 0 || height <= 0) return null;
+                    const key = face.faceID != null ? String(face.faceID) : String(idx);
+                    return (
+                      <View
+                        key={key}
+                        style={[
+                          styles.faceBox,
+                          {
+                            left: x,
+                            top: y,
+                            width,
+                            height,
+                          },
+                        ]}
+                      />
+                    );
+                  })
+                : null}
+            </View>
           </>
         ) : (
           <View style={styles.cameraPlaceholder}>
@@ -131,6 +202,8 @@ export default function VerifyScreen() {
         </View>
       )}
 
+      {faceBoxEnabled && faces.length > 0 ? <StatusBox text="Đã nhận diện được gương mặt" /> : null}
+
       {selfieUri ? (
         <View style={styles.selfiePreviewWrap}>
           <Image source={{ uri: selfieUri }} style={styles.selfiePreview} />
@@ -138,13 +211,6 @@ export default function VerifyScreen() {
       ) : null}
 
       {sendError ? <StatusBox text={sendError} /> : null}
-
-      <Box>
-        <Row label="Bước 1" value="Lấy vị trí hiện tại" />
-        <Row label="Bước 2" value="Kiểm tra vị trí có đáng tin cậy không" />
-        <Row label="Bước 3" value={selfieUri ? 'Đã ghi nhận khuôn mặt (selfie)' : 'Chụp selfie để xác minh khuôn mặt'} />
-        <Row label="Bước 4" value="Kiểm tra có đang ở trong vùng cho phép" />
-      </Box>
 
       <Button
         label={selfieUri ? 'Chụp lại selfie' : 'Chụp selfie'}
@@ -172,6 +238,9 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
   faceGuide: {
     position: 'absolute',
     alignSelf: 'center',
@@ -181,6 +250,13 @@ const styles = StyleSheet.create({
     borderColor: wf.colors.accent,
     borderWidth: 3,
     borderRadius: 90,
+    backgroundColor: 'transparent',
+  },
+  faceBox: {
+    position: 'absolute',
+    borderColor: wf.colors.accent,
+    borderWidth: 2,
+    borderRadius: wf.radius.md,
     backgroundColor: 'transparent',
   },
   cameraPlaceholder: {

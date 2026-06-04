@@ -6,3 +6,4 @@ mobile/.DS_Store
 mobile/npm-debug.log*
 mobile/yarn-debug.log*
 mobile/yarn-error.log*
+mobile/.idea/
